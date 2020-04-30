@@ -14,7 +14,7 @@ The ROS node, `dr_spaam_ros` subscribes to the laser scan (`sensor_msgs/LaserSca
 and publishes detections as `geometry_msgs/PoseArray`.
 The topics are defined in `dr_spaam_ros/config/topics.yaml`.
 To use a different message defination, simply modify `_detections_to_ros_msg` 
-method in `src/dr_spaam_ros/dr_spaam_ros.py`.
+method in `dr_spaam_ros/src/dr_spaam_ros/dr_spaam_ros.py`.
 
 ![](imgs/dr_spaam_ros.gif)
 
