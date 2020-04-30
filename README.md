@@ -12,6 +12,7 @@ Although DR-SPAAM is a detector, it can generate simple tracklets, based on its 
 To interface with many robotic applications, an example ROS node is also included.
 The ROS node, `dr_spaam_ros` subscribes to the laser scan (`sensor_msgs/LaserScan`)
 and publishes detections as `geometry_msgs/PoseArray`.
+The topics are defined in `dr_spaam_ros/config/topics.yaml'.
 To use a different message defination, simply modify `_detections_to_ros_msg` 
 method in `src/dr_spaam_ros/dr_spaam_ros.py`.
 
