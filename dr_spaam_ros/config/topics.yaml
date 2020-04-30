@@ -1,0 +1,10 @@
+publisher:
+    detections:
+        topic: /dr_spaam_detections
+        queue_size: 1
+        latch: false
+
+subscriber:
+    scan:
+        topic: /sick_laser_front/scan
+        queue_size: 1
