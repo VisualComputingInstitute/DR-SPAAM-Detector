@@ -15,8 +15,7 @@ def inference_time():
     use_gpu = True
     for use_drow in (True, False):
         ckpt = './ckpts/drow_e40.pth' if use_drow else './ckpts/dr_spaam_e40.pth'
-        detector = Detector(ckpt, original_drow=use_drow,
-                            gpu=use_gpu, area_interp=True, stride=1)
+        detector = Detector(ckpt, original_drow=use_drow, gpu=use_gpu, stride=1)
         detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
         t_list = []
@@ -46,8 +45,7 @@ def play_sequence():
 
     # detector
     ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(ckpt, original_drow=False,
-                        gpu=True, area_interp=False, stride=1)
+    detector = Detector(ckpt, original_drow=False, gpu=True, stride=1)
     detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
     # scanner location
@@ -109,7 +107,7 @@ def play_sequence():
             c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False)
             ax.add_artist(c)
 
-        plt.savefig('/home/jia/tmp_imgs/dets/frame_%04d.png' % i)
+        # plt.savefig('/home/jia/tmp_imgs/dets/frame_%04d.png' % i)
 
         plt.pause(0.001)
     
@@ -144,8 +142,7 @@ def play_sequence_with_tracking():
 
     # detector
     ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(ckpt, original_drow=False,
-                        gpu=True, area_interp=False, stride=1)
+    detector = Detector(ckpt, original_drow=False, gpu=True, stride=1)
     detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
     # scanner location
@@ -215,7 +212,7 @@ def play_sequence_with_tracking():
                 t_rot = np.matmul(t, odo_rot.T)
                 ax.plot(t_rot[:, 0], t_rot[:, 1], color='g')
 
-        plt.savefig('/home/jia/tmp_imgs/tracks/frame_%05d.png' % i)
+        # plt.savefig('/home/jia/tmp_imgs/tracks/frame_%05d.png' % i)
 
         plt.pause(0.001)
     
