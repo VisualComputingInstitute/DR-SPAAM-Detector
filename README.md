@@ -29,35 +29,38 @@ cd dr_spaam
 python setup.py install
 ```
 
-Download and put the [DROW dataset](https://github.com/VisualComputingInstitute/DROW) under `dr_spaam/data`.
+Download and put the [DROW dataset](https://github.com/VisualComputingInstitute/DROW) under `dr_spaam/data`. 
+Download the checkpoints from the [release section](https://github.com/VisualComputingInstitute/DR-SPAAM-Detector/releases) and put them under `dr_spaam/ckpts`.
+The directory should have the following layout.
+```
+dr_spaam
+├── data
+│   ├── DROWv2-data
+│   │   ├── test
+│   │   ├── train
+│   │   ├── val
+├── ckpts
+│   ├── drow_e40.pth
+│   ├── dr_spaam_e40.pth
+...
+``` 
 
-Download the checkpoints from the release section and put them under `dr_spaam/ckpts`.
-
-To measure the network inference time, run:
+Run `bin/demo.py` to measure the inference time (`--time`), 
+to visualize detections on an example sequence (`--dets`), 
+or to visualize tracklets (`--tracks`).
 ```
-python bin/demo.py --time 
-```
-
-To visualize detections on an example sequence, run:
-```
-python bin/demo.py --dets
+python bin/demo.py [--time/--dets/--tracks]
 ```
 
-To visualize detections with tracklets, run:
-```
-python bin/demo.py --tracks
-```
-
-To train your own network, run:
+To train a network, run:
 ```
 python bin/train.py --cfg cfgs/dr_spaam.yaml
 ```
 
-To evaluat a checkpoint, run:
+To evaluat a checkpoint on the test set (on the validation set with `--val`), run:
 ```
-python bin/eval.py --cfg cfgs/dr_spaam.yaml --ckpt ckpts/dr_spaam_e40.pth
+python bin/eval.py --cfg cfgs/dr_spaam.yaml --ckpt ckpts/dr_spaam_e40.pth [--val]
 ```
-(add `--val` to evaluate on the validation set)
 
 Integrating DR-SPAAM into other python projects is easy. 
 Here's a minimum example.
