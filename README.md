@@ -123,7 +123,7 @@ Note: In the original paper, we used a voting scheme for postprocessing.
 In the implementation here, we have replaced the voting with a non-maximum suppression,
 where two detections that are less than 0.5 m apart are considered as duplicates 
 and the less confident one is suppressed.
-Thus there is a mismatch between the numbers here and those shown in the paper.
+Thus there is a mismatch between the numbers here and those listed in the paper.
 
 ## Citation
 If you use DR-SPAAM in your project, please cite:
