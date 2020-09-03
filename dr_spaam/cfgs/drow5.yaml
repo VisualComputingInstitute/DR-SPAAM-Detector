@@ -1,0 +1,37 @@
+tag: ""
+epochs: 40
+batch_size: 8
+grad_norm_clip: -1.0
+num_workers: 8
+num_scans: 5
+use_data_augumentation: False
+train_with_val: False
+use_polar_grid: False
+focal_loss_gamma: 0.0
+pedestrian_only: True
+
+# Network type: "cutout" or "cutout_spatial"
+network: "cutout"
+
+cutout_kwargs:
+    fixed: False
+    centered: True
+    window_width: 1.0
+    window_depth: 0.5
+    num_cutout_pts: 56
+    padding_val: 29.99
+    area_mode: True
+
+polar_grid_kwargs:
+    min_range: 0.0
+    max_range: 30.0
+    range_bin_size: 0.1
+    tsdf_clip: 1.0
+    normalize: True
+
+# from hyperopt (no longer used)
+vote_kwargs:
+    bin_size: 0.10041661299422858
+    blur_sigma: 1.3105587107688101
+    min_thresh: 1.0228621127903203e-05
+    vote_collect_radius: 0.15356209212109417

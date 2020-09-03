@@ -5,9 +5,19 @@ from .model.drow import DROW, SpatialDROW
 
 
 class Detector(object):
-    def __init__(self, ckpt_file, original_drow=False, gpu=True, stride=1):
+    def __init__(self, model_name, ckpt_file, gpu=True, stride=1, tracking=False):
+        """DR-SPAAM detector wrapper
+
+        Args:
+            model_name (str): "DROW", "DROW-T5", or "DR-SPAAM"
+            ckpt_file (str): Path to checkpoint
+            gpu (bool, optional): True to use GPU. Defaults to True.
+            stride (int, optional): Use stride to skip scan points. Defaults to 1.
+            tracking (bool, optional): True to do tracking. Defaults to False.
+        """
         self._gpu, self._scan_phi, self._stride = gpu, None, stride
-        self._original_drow = original_drow
+        self._model_name = model_name
+        self._use_dr_spaam = model_name == "DR-SPAAM"
 
         self._ct_kwargs = {
             "fixed": False,
@@ -19,15 +29,41 @@ class Detector(object):
             "area_mode": True
         }
 
-        if original_drow:
-            model = DROW(num_scans=1, 
-                         num_pts=self._ct_kwargs['num_cutout_pts'], 
-                         pedestrian_only=True)
-        else:
+        # NOTE: Voting is replaced by NMS and vote kwargs are no longer needed
+        if model_name == "DR-SPAAM":
             model = SpatialDROW(num_pts=self._ct_kwargs['num_cutout_pts'],
                                 pedestrian_only=True,
                                 alpha=0.5,
-                                window_size=7)
+                                window_size=11)
+            self._vote_kwargs = {
+                "bin_size": 0.10048541940486004,
+                "blur_sigma": 1.459561417325547,
+                "min_thresh": 9.447764939669593e-05,
+                "vote_collect_radius": 0.15719563974052672
+            }
+        elif model_name == "DROW":
+            model = DROW(num_scans=1, 
+                         num_pts=self._ct_kwargs['num_cutout_pts'], 
+                         pedestrian_only=True)
+            self._vote_kwargs = {
+                "bin_size": 0.11691041834028301,
+                "blur_sigma": 0.7801193226779289,
+                "min_thresh": 0.0013299798109178708,
+                "vote_collect_radius": 0.1560556348793659
+            }
+        elif model_name == "DROW-T5":
+            model = DROW(num_scans=5, 
+                         num_pts=self._ct_kwargs['num_cutout_pts'], 
+                         pedestrian_only=True)
+            self._vote_kwargs = {
+                "bin_size": 0.10041661299422858,
+                "blur_sigma": 1.3105587107688101,
+                "min_thresh": 1.0228621127903203e-05,
+                "vote_collect_radius": 0.15356209212109417
+            }
+        else:
+            raise RuntimeError(
+                "Unknown model name '%s'. Use 'DR-SPAAM', 'DROW', or 'DROW-T5'." % (model_name))
 
         ckpt = torch.load(ckpt_file)
         model.load_state_dict(ckpt['model_state'])
@@ -35,21 +71,19 @@ class Detector(object):
         model.eval()
         self._model = model.cuda() if gpu else model
 
-        if not original_drow:
-            self._fea, self._sim = None, None
-            # for tracking
-            self._prev_dets_xy, self._prev_dets_cls = None, None
-            self._prev_instance_mask, self._prev_dets_to_tracks = None, None
-            self._tracks, self._tracks_cls, self._tracks_age = [], [], []
-            self._max_track_age = 100
-            self._max_assoc_dist = 0.7
+        self._tracker = _TrackingExtension() if tracking else None
+        if self._use_dr_spaam:
+            self._fea = None
 
-    def __call__(self, scan, tracking=False):
+    def __call__(self, scan):
         assert self.laser_spec_set(), "Need to call set_laser_spec() first."
+
+        if len(scan.shape) == 1:
+            scan = scan[None, ...]
 
         # preprocess
         ct = u.scans_to_cutout(
-            scan[None, ...], self._scan_phi,
+            scan, self._scan_phi,
             stride=self._stride, **self._ct_kwargs)
         ct = torch.from_numpy(ct).float()
 
@@ -58,34 +92,51 @@ class Detector(object):
 
         # inference
         with torch.no_grad():
-            if self._original_drow:
-                pred_cls, pred_reg = self._model(ct.unsqueeze(dim=0))  # one dim for batch
-            else:
-                pred_cls, pred_reg, self._fea, self._sim = self._model(
+            if self._use_dr_spaam:
+                pred_cls, pred_reg, self._fea, sim_matrix = self._model(
                     ct.unsqueeze(dim=0), testing=True, fea_template=self._fea)
+            else:
+                pred_cls, pred_reg = self._model(ct.unsqueeze(dim=0))  # one dim for batch
         pred_cls = torch.sigmoid(pred_cls[0]).data.cpu().numpy()
         pred_reg = pred_reg[0].data.cpu().numpy()
 
         # postprocess
         dets_xy, dets_cls, instance_mask = u.nms_predicted_center(
-            scan, self._scan_phi, pred_cls, pred_reg)
+            scan[-1], self._scan_phi, pred_cls, pred_reg, min_dist=0.5)
+        # dets_xy, dets_cls, instance_mask = u.group_predicted_center(
+        #     scan[-1], self._scan_phi, pred_cls, pred_reg, **self._vote_kwargs)
 
-        if tracking:
-            self._update_tracklets(dets_xy, dets_cls, instance_mask)
+        if self._tracker:
+            self._tracker(dets_xy, dets_cls, instance_mask, sim_matrix)
 
         return dets_xy, dets_cls, instance_mask
 
     def get_tracklets(self):
-        tracks, tracks_cls = [], []
-        for i in range(len(self._tracks)):
-            if self._tracks_age[i] < self._max_track_age:
-                tracks.append(np.stack(self._tracks[i], axis=0))
-                tracks_cls.append(np.array(self._tracks_cls[i]).mean())
-        return tracks, tracks_cls
+        assert self._tracker is not None
+        return self._tracker.get_tracklets()
 
-    def _update_tracklets(self, dets_xy, dets_cls, instance_mask):
-        assert not self._original_drow, "Must use DR-SPAAM model"
+    def set_laser_spec(self, angle_inc, num_pts):
+        self._scan_phi = u.get_laser_phi(angle_inc, num_pts)[::self._stride]
 
+    def laser_spec_set(self):
+        return self._scan_phi is not None
+
+
+class _TrackingExtension(object):
+    def __init__(self):
+        self._prev_dets_xy = None
+        self._prev_dets_cls = None
+        self._prev_instance_mask = None
+        self._prev_dets_to_tracks = None  # a list of track id for each detection
+
+        self._tracks = []
+        self._tracks_cls = []
+        self._tracks_age = []
+
+        self._max_track_age = 100
+        self._max_assoc_dist = 0.7
+
+    def __call__(self, dets_xy, dets_cls, instance_mask, sim_matrix):
         # first frame
         if self._prev_dets_xy is None:
             self._prev_dets_xy = dets_xy
@@ -102,7 +153,7 @@ class Detector(object):
 
         # associate detections
         prev_dets_inds = self._associate_prev_det(
-            dets_xy, dets_cls, instance_mask)
+            dets_xy, dets_cls, instance_mask, sim_matrix)
 
         # mapping from detection indices to tracklets indices
         dets_to_tracks = []
@@ -159,10 +210,18 @@ class Detector(object):
         self._prev_instance_mask = instance_mask
         self._prev_dets_to_tracks = dets_to_tracks
 
-    def _associate_prev_det(self, dets_xy, dets_cls, instance_mask):
+    def get_tracklets(self):
+        tracks, tracks_cls = [], []
+        for i in range(len(self._tracks)):
+            if self._tracks_age[i] < self._max_track_age:
+                tracks.append(np.stack(self._tracks[i], axis=0))
+                tracks_cls.append(np.array(self._tracks_cls[i]).mean())
+        return tracks, tracks_cls
+
+    def _associate_prev_det(self, dets_xy, dets_cls, instance_mask, sim_matrix):
         prev_dets_inds = []
         occupied_flag = np.zeros(len(self._prev_dets_xy), dtype=np.bool)
-        sim = self._sim[0].data.cpu().numpy()
+        sim = sim_matrix[0].data.cpu().numpy()
         for d_idx, (d_xy, d_cls) in enumerate(zip(dets_xy, dets_cls)):
             inst_id = d_idx + 1  # instance is 1-based
 
@@ -184,9 +243,3 @@ class Detector(object):
                 occupied_flag[prev_d_idx] = True
 
         return prev_dets_inds
-
-    def set_laser_spec(self, angle_inc, num_pts):
-        self._scan_phi = u.get_laser_phi(angle_inc, num_pts)[::self._stride]
-
-    def laser_spec_set(self):
-        return self._scan_phi is not None

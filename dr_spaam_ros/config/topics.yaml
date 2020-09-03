@@ -4,6 +4,11 @@ publisher:
         queue_size: 1
         latch: false
 
+    rviz:
+        topic: /dr_spaam_rviz
+        queue_size: 1
+        latch: false
+
 subscriber:
     scan:
         topic: /sick_laser_front/scan

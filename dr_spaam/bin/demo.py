@@ -1,6 +1,9 @@
 import argparse
 import time
 import numpy as np
+
+# import matplotlib
+# matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from dr_spaam.detector import Detector
@@ -13,25 +16,32 @@ def inference_time():
 
     # inference time
     use_gpu = True
-    for use_drow in (True, False):
-        ckpt = './ckpts/drow_e40.pth' if use_drow else './ckpts/dr_spaam_e40.pth'
-        detector = Detector(ckpt, original_drow=use_drow, gpu=use_gpu, stride=1)
+    model_names = ("DR-SPAAM", "DROW", "DROW-T5")
+    ckpts = (
+        "./ckpts/dr_spaam_e40.pth",
+        "./ckpts/drow_e40.pth",
+        "./ckpts/drow5_e40.pth"
+    )
+    for model_name, ckpt in zip(model_names, ckpts):
+        detector = Detector(model_name=model_name, ckpt_file=ckpt, gpu=use_gpu, stride=1)
         detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
         t_list = []
         for i in range(60):
+            s = scans[i:i+5] if model_name == "DROW-T5" else scans[i]
             t0 = time.time()
-            dets_xy, dets_cls, instance_mask = detector(scans[i])
+            dets_xy, dets_cls, instance_mask = detector(s)
             t_list.append(1e3 * (time.time() - t0))
 
         t = np.array(t_list[10:]).mean()
         print("inference time (model: %s, gpu: %s): %f ms (%.1f FPS)" % (
-            "DROW" if use_drow else "DR-SPAAM", use_gpu, t, 1e3 / t))
+            model_name, use_gpu, t, 1e3 / t))
 
 
 def play_sequence():
     # scans
     seq_name = './data/DROWv2-data/test/run_t_2015-11-26-11-22-03.bag.csv'
+    # seq_name = './data/DROWv2-data/val/run_2015-11-26-15-52-55-k.bag.csv'
     scans_data = np.genfromtxt(seq_name, delimiter=',')
     scans_t = scans_data[:, 1]
     scans = scans_data[:, 2:]
@@ -45,7 +55,7 @@ def play_sequence():
 
     # detector
     ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(ckpt, original_drow=False, gpu=True, stride=1)
+    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=1)
     detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
     # scanner location
@@ -54,7 +64,7 @@ def play_sequence():
     xy_scanner = np.stack(xy_scanner, axis=1)
 
     # plot
-    fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111)
 
     _break = False
@@ -67,11 +77,12 @@ def play_sequence():
     # video sequence
     odo_idx = 0
     for i in range(len(scans)):
+    # for i in range(0, len(scans), 20):
         plt.cla()
 
         ax.set_aspect('equal')
         ax.set_xlim(-15, 15)
-        ax.set_ylim(-5, 15)
+        ax.set_ylim(-15, 15)
 
         # ax.set_title('Frame: %s' % i)
         ax.set_title('Press any key to exit.')
@@ -104,10 +115,11 @@ def play_sequence():
         for j in range(len(dets_xy)):
             if dets_cls[j] < cls_thresh:
                 continue
-            c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False)
+            # c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False)
+            c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False, linewidth=2)
             ax.add_artist(c)
 
-        # plt.savefig('/home/jia/tmp_imgs/dets/frame_%04d.png' % i)
+        # plt.savefig('/home/dan/tmp/det_img/frame_%04d.png' % i)
 
         plt.pause(0.001)
     
@@ -118,7 +130,7 @@ def play_sequence():
 def play_sequence_with_tracking():
     # scans
     seq_name = './data/DROWv2-data/train/lunch_2015-11-26-12-04-23.bag.csv'
-    seq0, seq1 = 107000, 109357
+    seq0, seq1 = 109170, 109360
     scans, scans_t = [], []
     with open(seq_name) as f:
         for line in f:
@@ -142,7 +154,7 @@ def play_sequence_with_tracking():
 
     # detector
     ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(ckpt, original_drow=False, gpu=True, stride=1)
+    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=1, tracking=True)
     detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
     # scanner location
@@ -151,7 +163,7 @@ def play_sequence_with_tracking():
     xy_scanner = np.stack(xy_scanner, axis=1)
 
     # plot
-    fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(6, 8))
     ax = fig.add_subplot(111)
 
     _break = False
@@ -167,7 +179,7 @@ def play_sequence_with_tracking():
         plt.cla()
 
         ax.set_aspect('equal')
-        ax.set_xlim(-15, 15)
+        ax.set_xlim(-10, 5)
         ax.set_ylim(-5, 15)
 
         # ax.set_title('Frame: %s' % i)
@@ -193,7 +205,7 @@ def play_sequence_with_tracking():
         ax.scatter(scan_x, scan_y, s=1, c='blue')
 
         # inference
-        dets_xy, dets_cls, instance_mask = detector(scan, tracking=True)
+        dets_xy, dets_cls, instance_mask = detector(scan)
 
         # plot detection
         dets_xy_rot = np.matmul(dets_xy, odo_rot.T)
@@ -201,7 +213,7 @@ def play_sequence_with_tracking():
         for j in range(len(dets_xy)):
             if dets_cls[j] < cls_thresh:
                 continue
-            c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False)
+            c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False, linewidth=2)
             ax.add_artist(c)
 
         # plot track
@@ -210,9 +222,9 @@ def play_sequence_with_tracking():
         for t, tc in zip(tracks, tracks_cls):
             if tc >= cls_thresh and len(t) > 1:
                 t_rot = np.matmul(t, odo_rot.T)
-                ax.plot(t_rot[:, 0], t_rot[:, 1], color='g')
+                ax.plot(t_rot[:, 0], t_rot[:, 1], color='g', linewidth=2)
 
-        # plt.savefig('/home/jia/tmp_imgs/tracks/frame_%05d.png' % i)
+        # plt.savefig('/home/dan/tmp/track3_img/frame_%04d.png' % i)
 
         plt.pause(0.001)
     

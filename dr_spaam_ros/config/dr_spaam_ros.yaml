@@ -1,3 +1,3 @@
-weight_file: '/globalwork/jia/drow_output/NCT_spaam_area/ckpts/ckpt_e40.pth'
+weight_file: '/home/dan/git/DR-SPAAM-Detector_private/dr_spaam/ckpts/dr_spaam_e40.pth'
 conf_thresh: 0.1
 stride: 1  # use this to skip laser points
