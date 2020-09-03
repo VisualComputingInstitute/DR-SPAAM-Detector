@@ -1,4 +1,5 @@
-This repository contains the implementation of *DR-SPAAM: A Spatial-Attention and Auto-regressive Model for Person Detection in 2D Range Data* ([arXiv](https://arxiv.org/abs/2004.14079)).
+This repository contains the implementation of *DR-SPAAM: A Spatial-Attention and Auto-regressive Model for Person Detection in 2D Range Data*
+to appear in IROS'20 ([arXiv](https://arxiv.org/abs/2004.14079)).
 
 # DR-SPAAM Detector
 DR-SPAAM is a deep learning based person detector that detects persons in 2D range sequences obtained from a laser scanner.
@@ -9,12 +10,11 @@ Although DR-SPAAM is a detector, it can generate simple tracklets, based on its 
 
 ![](imgs/tracks.gif)
 
-To interface with many robotic applications, an example ROS node is also included.
+To interface with many robotic applications, an example ROS node is included.
 The ROS node, `dr_spaam_ros` subscribes to the laser scan (`sensor_msgs/LaserScan`)
-and publishes detections as `geometry_msgs/PoseArray`.
-The topics are defined in `dr_spaam_ros/config/topics.yaml`.
-To use a different message defination, simply modify `_detections_to_ros_msg` 
-method in `dr_spaam_ros/src/dr_spaam_ros/dr_spaam_ros.py`.
+and publishes detections as `geometry_msgs/PoseArray` and visualization markers for RViz.
+
+![](imgs/rosgraph.png)
 
 ![](imgs/dr_spaam_ros.gif)
 
@@ -41,6 +41,7 @@ dr_spaam
 │   │   ├── val
 ├── ckpts
 │   ├── drow_e40.pth
+│   ├── drow5_e40.pth
 │   ├── dr_spaam_e40.pth
 ...
 ``` 
@@ -68,11 +69,16 @@ Here's a minimum example.
 import numpy as np
 from dr_spaam.detector import Detector
 
-# Detector class wraps up preprocessing, inference, and postprocessing for 
-# DR-SPAAM. Set `original_drow=True` to use the original DROW model instead. 
-# Use `stride` to skip scan points if faster inference speed is needed.
+# Detector class wraps up preprocessing, inference, and postprocessing for DR-SPAAM.
+# Checkout the comment in the code for meanings of the parameters.
 ckpt = 'path_to_checkpoint'
-detector = Detector(ckpt, original_drow=False, gpu=True, stride=1)
+detector = Detector(
+    model_name="DR-SPAAM", 
+    ckpt_file=ckpt, 
+    gpu=True, 
+    stride=1, 
+    tracking=False
+)
 
 # set angular grid (this is only required once)
 ang_inc = np.radians(0.5)  # angular increment of the scanner
@@ -85,7 +91,7 @@ while True:
     dets_xy, dets_cls, instance_mask = detector(scan)  # get detection
 
     # confidence threshold
-    cls_thresh = 0.4
+    cls_thresh = 0.2
     cls_mask = dets_cls > cls_thresh
     dets_xy = dets_xy[cls_mask]
     dets_cls = dets_cls[cls_mask]
@@ -128,11 +134,11 @@ Thus there is a mismatch between the numbers here and those listed in the paper.
 ## Citation
 If you use DR-SPAAM in your project, please cite:
 ```BibTeX
-@article{Jia2020DRSPAAM,
-  title =   {{DR-SPAAM: A Spatial-Attention and Auto-regressive
-              Model for Person Detection in 2D Range Data}},
-  author =  {Dan Jia and Alexander Hermans and Bastian Leibe},
-  journal = {arXiv:2004.14079},
-  year =    {2020}
+@inproceedings{Jia2020DRSPAAM,
+  title        = {{DR-SPAAM: A Spatial-Attention and Auto-regressive
+                   Model for Person Detection in 2D Range Data}},
+  author       = {Dan Jia and Alexander Hermans and Bastian Leibe},
+  booktitle    = {International Conference on Intelligent Robots and Systems (IROS)},
+  year         = {2020}
 }
 ```
