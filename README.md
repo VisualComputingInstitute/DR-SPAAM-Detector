@@ -1,5 +1,5 @@
 This repository contains the implementation of *DR-SPAAM: A Spatial-Attention and Auto-regressive Model for Person Detection in 2D Range Data*
-to appear in IROS'20 ([arXiv](https://arxiv.org/abs/2004.14079)).
+to appear in IROS'20 ([arXiv](https://arxiv.org/abs/2004.14079), [video](https://www.youtube.com/watch?v=fACppMBEiQo)).
 
 # DR-SPAAM Detector
 DR-SPAAM is a deep learning based person detector that detects persons in 2D range sequences obtained from a laser scanner.
