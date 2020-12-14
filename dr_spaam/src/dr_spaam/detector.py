@@ -102,7 +102,7 @@ class Detector(object):
 
         # postprocess
         dets_xy, dets_cls, instance_mask = u.nms_predicted_center(
-            scan[-1], self._scan_phi, pred_cls, pred_reg, min_dist=0.5)
+            scan[-1, ::self._stride], self._scan_phi[::self._stride], pred_cls, pred_reg, min_dist=0.5)
         # dets_xy, dets_cls, instance_mask = u.group_predicted_center(
         #     scan[-1], self._scan_phi, pred_cls, pred_reg, **self._vote_kwargs)
 
@@ -116,7 +116,7 @@ class Detector(object):
         return self._tracker.get_tracklets()
 
     def set_laser_spec(self, angle_inc, num_pts):
-        self._scan_phi = u.get_laser_phi(angle_inc, num_pts)[::self._stride]
+        self._scan_phi = u.get_laser_phi(angle_inc, num_pts)
 
     def laser_spec_set(self):
         return self._scan_phi is not None
